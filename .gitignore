@@ -1,0 +1,39 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Rust (danbooru-tags source)
+danbooru-tags/rust-cli/target/
+danbooru-tags/rust-cli/Cargo.lock
+
+# Node
+node_modules/
+
+# Logs
+*.log
+Typora_Hook_Log.txt
+
+# Skills cache / runtimes
+cache/
+outputs/
+tmp/
+
+# Archives
+*.zip
+*.7z
+*.rar
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Anima Composition Director"
+  short_description: "Turn Anima image ideas into camera, canvas, composition, lighting, and short nltags controls."
+  default_prompt: "Plan the canvas, camera, composition, lighting, focus, and short English nltags sentences for this Anima image idea."
