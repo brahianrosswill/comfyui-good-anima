@@ -28,53 +28,15 @@ description: Manage ComfyUI server, models, workflows, LoRAs, queues, dependenci
 
 路径解析规则：
 
+> 路径解析：执行下方 PowerShell 脚本，自动搜索 `skills/` 容器定位 `comfyui-manager/workspace`。脚本失败时设置 `$env:COMFYUI_MANAGER_WORKSPACE`。
+
 1. 优先使用当前已安装 skill 同目录下的 `workspace`。
 2. 已在 `workspace` 目录内执行时，直接使用当前目录。
 3. 自动化脚本可显式设置 `COMFYUI_MANAGER_WORKSPACE`。
 4. 从通用 Agent Skills 安装环境启动时，可从当前目录向上查找任意 `skills/` 容器，再定位 `comfyui-manager`。
 5. 不要写死用户名或任何 agent 平台安装目录。
 
-PowerShell 兜底解析示例：
-
-```powershell
-function Test-ComfyManagerWorkspace($Path) {
-  return (Test-Path (Join-Path $Path "config.json")) -and (Test-Path (Join-Path $Path "data"))
-}
-
-function Find-ComfyManagerWorkspaceFromSkills($Start) {
-  $cursor = (Resolve-Path $Start).Path
-  while ($cursor) {
-    $skillsDirs = Get-ChildItem -LiteralPath $cursor -Directory -Recurse -Depth 2 -Filter "skills" -ErrorAction SilentlyContinue
-    foreach ($skillsDir in $skillsDirs) {
-      foreach ($candidate in @(
-        (Join-Path $skillsDir.FullName "comfyui-manager\workspace"),
-        (Join-Path $skillsDir.FullName "comfyui-good-anima\comfyui-manager\workspace")
-      )) {
-        if (Test-ComfyManagerWorkspace $candidate) { return (Resolve-Path $candidate).Path }
-      }
-    }
-    # 回退：平铺结构，直接检查当前目录及子目录
-    $flatCandidate = Join-Path $cursor "comfyui-manager\workspace"
-    if (Test-ComfyManagerWorkspace $flatCandidate) { return (Resolve-Path $flatCandidate).Path }
-    $parent = Split-Path $cursor -Parent
-    if ($parent -eq $cursor) { break }
-    $cursor = $parent
-  }
-  return $null
-}
-
-$WORKSPACE = if ($env:COMFYUI_MANAGER_WORKSPACE) {
-  $env:COMFYUI_MANAGER_WORKSPACE
-} elseif (Test-ComfyManagerWorkspace ".\workspace") {
-  (Resolve-Path ".\workspace").Path
-} elseif (Test-ComfyManagerWorkspace ".") {
-  (Get-Location).Path
-} elseif ($found = Find-ComfyManagerWorkspaceFromSkills ".") {
-  $found
-} else {
-  throw "Set COMFYUI_MANAGER_WORKSPACE or run from a directory that can discover skills/comfyui-manager"
-}
-```
+执行 `.\workspace\setup-workspace.ps1`
 
 默认 Anima 生图工作流：
 
@@ -106,30 +68,7 @@ comfyui-skill --dir "$WORKSPACE"
 
 写入 args / batch JSON 时默认使用 PowerShell 7 UTF-8 no BOM（`Set-Content -Encoding utf8`）。当前终端不是 PS7 时，用 `pwsh.exe -NoProfile -Command` 启动子进程。只有两种方式都不可用，才退到 PS5 + BOM。禁止不查版本就假设 PS5。
 
-运行产物不要写入 skill 目录。临时 args、批量 args、输出图片、缓存和历史统一放到 `$RUNTIME`：
-
-```powershell
-$RUNTIME = if ($env:COMFYUI_MANAGER_RUNTIME_DIR) {
-  $env:COMFYUI_MANAGER_RUNTIME_DIR
-} elseif ($env:SKILL_RUNTIME_ROOT) {
-  Join-Path $env:SKILL_RUNTIME_ROOT "comfyui-manager"
-} else {
-  try {
-    $config = Get-Content -LiteralPath (Join-Path $WORKSPACE "config.json") -Raw | ConvertFrom-Json
-    $outputDir = $config.servers[0].output_dir
-    if ($outputDir) {
-      Split-Path ([System.IO.Path]::GetFullPath((Join-Path $WORKSPACE $outputDir))) -Parent
-    } else {
-      Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
-    }
-  } catch {
-    Join-Path (Resolve-Path (Join-Path $WORKSPACE "..\..")).Path "runtime\comfyui-manager"
-  }
-}
-New-Item -ItemType Directory -Force -Path $RUNTIME | Out-Null
-```
-
-Runtime 解析优先级：`COMFYUI_MANAGER_RUNTIME_DIR` > `SKILL_RUNTIME_ROOT/comfyui-manager` > `workspace/config.json` 的 `output_dir` 父目录 > workspace 相对 fallback。
+运行产物不要写入 skill 目录。临时 args、批量 args、输出图片、缓存和历史统一放到 `$RUNTIME`（由 setup-workspace.ps1 解析）。
 
 `workspace/outputs` 和 `workspace/cache` 可指向 `$RUNTIME/outputs`、`$RUNTIME/cache`，用于 Claw / GUI 读取本地文件路径或 base64。不要在 workspace 内复制第二份图片。
 

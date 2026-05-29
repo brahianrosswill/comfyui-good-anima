@@ -26,6 +26,8 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 
 默认优先 Rust CLI。必须从当前宿主的本 skill 目录执行，不要从其他 skill 目录找 `bin`。
 
+> 路径解析：执行下方 PowerShell 脚本，自动搜索 `skills/` 容器定位本目录。脚本失败时设置 `$env:DANBOORU_TAGS_DIR`。
+
 `DANBOORU_TAGS_DIR` 是包含 `bin/danbooru-tags.exe`、`anima-1.0.csv`、`tags_index.sqlite` 的目录。路径解析规则：
 
 1. 已读取本 `SKILL.md` 时，优先使用该文件所在目录。
@@ -34,49 +36,8 @@ description: Search and validate Anima-compatible Danbooru tags, artists, charac
 4. 从通用 Agent Skills 安装环境启动时，可从当前目录向上查找任意 `skills/` 容器，再定位 `danbooru-tags`。
 5. 不要写死用户名或任何 agent 平台安装目录。
 
-PowerShell 兜底解析示例：
+执行 `.\bin\setup-dir.ps1`
 
-```powershell
-function Test-DanbooruTagsDir($Path) {
-  return (Test-Path (Join-Path $Path "bin/danbooru-tags.exe")) -and (Test-Path (Join-Path $Path "tags_index.sqlite"))
-}
-
-function Find-DanbooruTagsDirFromSkills($Start) {
-  $cursor = (Resolve-Path $Start).Path
-  while ($cursor) {
-    $skillsDirs = Get-ChildItem -LiteralPath $cursor -Directory -Recurse -Depth 2 -Filter "skills" -ErrorAction SilentlyContinue
-    foreach ($skillsDir in $skillsDirs) {
-      foreach ($candidate in @(
-        (Join-Path $skillsDir.FullName "danbooru-tags"),
-        (Join-Path $skillsDir.FullName "comfyui-good-anima\danbooru-tags")
-      )) {
-        if (Test-DanbooruTagsDir $candidate) { return (Resolve-Path $candidate).Path }
-      }
-    }
-    # 回退：平铺结构，直接检查当前目录及子目录
-    $flatCandidate = Join-Path $cursor "danbooru-tags"
-    if (Test-DanbooruTagsDir $flatCandidate) { return (Resolve-Path $flatCandidate).Path }
-    $parent = Split-Path $cursor -Parent
-    if ($parent -eq $cursor) { break }
-    $cursor = $parent
-  }
-  return $null
-}
-
-$DANBOORU_TAGS_DIR = if ($env:DANBOORU_TAGS_DIR) {
-  $env:DANBOORU_TAGS_DIR
-} elseif (Test-DanbooruTagsDir ".") {
-  (Get-Location).Path
-} elseif (Test-DanbooruTagsDir "./danbooru-tags") {
-  (Resolve-Path "./danbooru-tags").Path
-} elseif (Test-DanbooruTagsDir "./comfyui-good-anima/danbooru-tags") {
-  (Resolve-Path "./comfyui-good-anima/danbooru-tags").Path
-} elseif ($found = Find-DanbooruTagsDirFromSkills ".") {
-  $found
-} else {
-  throw "Set DANBOORU_TAGS_DIR or run from a directory that can discover skills/danbooru-tags"
-}
-Push-Location "$DANBOORU_TAGS_DIR"  # 后续 CLI 命令依赖此 CWD；调用完成后可用 Pop-Location 恢复
 ```
 
 生图前多锚点检索优先用批量入口。Shell 下复杂 batch JSON 必须写入文件，避免内联 JSON 被拆坏：
