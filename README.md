@@ -325,7 +325,6 @@ comfyui-good-anima/
 │   ├── SKILL.md
 │   └── workspace/
 │       ├── config.json                     # ComfyUI 服务器配置
-│       ├── setup-workspace.ps1             # 自动解析 WORKSPACE/RUNTIME
 │       ├── data/                           # 工作流 JSON 定义
 │       │   ├── anima-txt2img-base.json
 │       │   ├── anima-txt2img-aesthetic-lora.json

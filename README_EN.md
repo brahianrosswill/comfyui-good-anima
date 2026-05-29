@@ -323,7 +323,6 @@ comfyui-good-anima/
 │   ├── SKILL.md
 │   └── workspace/
 │       ├── config.json
-│       ├── setup-workspace.ps1
 │       ├── data/                           # Workflow JSON definitions
 │       ├── cache_anima_outputs.js
 │       └── run_workflow_args.js

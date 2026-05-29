@@ -24,21 +24,17 @@ description: Manage ComfyUI server, models, workflows, LoRAs, queues, dependenci
 
 ## CLI 工作区
 
-所有 `comfyui-skill` 命令必须从解析出的 `WORKSPACE` 目录运行。`WORKSPACE` 是包含 `config.json` 和 `data/` 的 `comfyui-manager/workspace` 目录。
+所有 `comfyui-skill` 命令都从当前 `comfyui-manager/workspace` 目录运行。模型已读取本 `SKILL.md` 时，直接进入本 skill 同目录下的 `workspace`；不要递归搜索全盘，不要写死用户名或绝对路径。
 
-路径解析规则：
+```powershell
+Set-Location -LiteralPath "<当前 comfyui-manager skill 目录>/workspace"
+$WORKSPACE = (Get-Location).Path
+$RUNTIME = Join-Path (Resolve-Path (Join-Path $WORKSPACE "../..")).Path "runtime/comfyui-manager"
+$env:COMFYUI_MANAGER_RUNTIME_DIR = $RUNTIME
+New-Item -ItemType Directory -Force -Path $RUNTIME | Out-Null
+```
 
-> 路径解析：执行下方 PowerShell 脚本，自动搜索 `skills/` 容器定位 `comfyui-manager/workspace`。脚本失败时设置 `$env:COMFYUI_MANAGER_WORKSPACE`。
-
-1. 优先使用当前已安装 skill 同目录下的 `workspace`。
-2. 已在 `workspace` 目录内执行时，直接使用当前目录。
-3. 自动化脚本可显式设置 `COMFYUI_MANAGER_WORKSPACE`。
-4. 从通用 Agent Skills 安装环境启动时，可从当前目录向上查找任意 `skills/` 容器，再定位 `comfyui-manager`。
-5. 不要写死用户名或任何 agent 平台安装目录。
-6. 首次运行从当前已加载 skill 的根目录（即 `$env:SKILL_RUNTIME_ROOT` 或 `skills/` 容器目录）下查找 `comfyui-manager/workspace`，找到后 `cd` 进入。
-
-找到目录后执行路径发现脚本：
-执行 `. .\workspace\setup-workspace.ps1`。必须 dot-source 调用，让 `$WORKSPACE` 和 `$RUNTIME` 留在当前会话。
+如果无法从上下文确定本文件所在目录，停止并说明“无法确定 comfyui-manager workspace 目录”。
 
 默认 Anima 生图工作流：
 
@@ -70,7 +66,7 @@ comfyui-skill --dir "$WORKSPACE"
 
 写入 args / batch JSON 时默认使用 PowerShell 7 UTF-8 no BOM（`Set-Content -Encoding utf8`）。当前终端不是 PS7 时，用 `pwsh.exe -NoProfile -Command` 启动子进程。只有两种方式都不可用，才退到 PS5 + BOM。禁止不查版本就假设 PS5。
 
-运行产物不要写入 skill 目录。临时 args、批量 args、输出图片、缓存和历史统一放到 `$RUNTIME`（由 setup-workspace.ps1 解析）。
+运行产物不要写入 skill 目录。临时 args、批量 args、输出图片、缓存和历史统一放到 `$RUNTIME`。
 
 `workspace/outputs` 和 `workspace/cache` 可指向 `$RUNTIME/outputs`、`$RUNTIME/cache`，用于 Claw / GUI 读取本地文件路径或 base64。不要在 workspace 内复制第二份图片。
 

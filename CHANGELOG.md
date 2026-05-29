@@ -7,6 +7,7 @@
 - `danbooru-tags` skill 默认从当前 skill 目录直接调用 `bin/danbooru-tags.exe`，不再依赖路径发现脚本。
 - 删除 `danbooru-tags/bin/setup-dir.ps1`，避免 ExecutionPolicy 阻断主流程。
 - README / README_EN / 相关 skills 的批量检索说明统一改为 `--batch-stdin` 优先；`--batch-file` 仅保留为落盘复查备选。
+- `comfyui-manager` 默认从当前 `workspace` 目录运行，删除 `workspace/setup-workspace.ps1` 路径发现脚本。
 
 ## v0.3.0 — 技能集群全面质量审查修复 (2026-05-29)
 
