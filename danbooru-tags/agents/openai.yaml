@@ -1,7 +1,0 @@
-interface:
-  display_name: "danbooru-tags"
-  short_description: "Danbooru tag lookup for Anima"
-  default_prompt: "Use $danbooru-tags to validate Anima-compatible Danbooru tags."
-
-policy:
-  allow_implicit_invocation: true

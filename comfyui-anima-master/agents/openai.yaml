@@ -1,7 +1,0 @@
-interface:
-  display_name: "comfyui-anima-master"
-  short_description: "Unified Anima generation entry"
-  default_prompt: "Use $comfyui-anima-master to generate an Anima image from my request."
-
-policy:
-  allow_implicit_invocation: true

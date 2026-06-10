@@ -1,7 +1,0 @@
-interface:
-  display_name: "comfyui-animatool"
-  short_description: "Anima prompt assembly reference"
-  default_prompt: "Use $comfyui-animatool to review Anima prompt assembly rules."
-
-policy:
-  allow_implicit_invocation: true

@@ -1,7 +1,0 @@
-interface:
-  display_name: "comfyui-manager"
-  short_description: "ComfyUI workflow execution manager"
-  default_prompt: "Use $comfyui-manager to run or diagnose a ComfyUI workflow."
-
-policy:
-  allow_implicit_invocation: true

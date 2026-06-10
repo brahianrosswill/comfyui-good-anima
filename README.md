@@ -1,6 +1,6 @@
 # ComfyUI Good Anima 🎨
 
-> 一套面向 AI 编程助手的 ComfyUI + Anima 二次元生图技能包。当前主线采用薄主控 + 意图展开 + 渐进式披露：主控保留路由和不可丢事实，模糊需求先变成清楚的生图构想，执行细节按需读取。
+> 一套面向 AI 编程助手的 ComfyUI + Anima 二次元生图技能包。当前主线是 v2mini：去掉多层代理式路由，只保留 Anima 生图所需的核心约束、Danbooru tag 校验和 ComfyUI 执行链路，让 AI 和人类把更多注意力留给画面本身。
 >
 > 🌐 **[English Version](./README_EN.md)**
 
@@ -10,12 +10,12 @@
 
 ## 主线设计目标
 
-- **薄主控** (`comfyui-anima-master`)：只做路由、事实约束和最小流程，不把通用构图知识和长案例塞进入口。
-- **不可丢事实**：Anima prompt 结构、双 LoRA 质量前缀、Artist Mixer 字段、workflow args、`submit` 非阻塞、文件命名和 PowerShell JSON 编码。
-- **意图层展开**：模糊需求先拆成主体、场景容器、关系、风格锚点，再补全画面成立所需的物理上下文、动作节拍和可见叙事锚点；它是理解路径，不是硬性规则清单。
-- **渐进式披露**：Master（路由+事实）→ Skill（领域边界）→ Reference（执行事实/失败防漂移），只在需要时加载。
-- **保留模型能力**：角色/画师/构图常识不被硬约束替代；skill 只防止模型踩 Anima 特定坑。
-- **官方模型信息同步**：使用 [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) 相关模型信息，并区分裸模型与本项目双 LoRA 工作流。
+- **返璞归真**：v2mini 不再依赖 master / composition-director / random-gen 多层链路，默认从 `comfyui-animatool` 进入生图。
+- **把创作权还给模型和用户**：skill 不替代审美、构图常识和角色理解；只保留 Anima 工作流中容易丢失或容易出错的硬边界。
+- **不可丢事实**：Anima prompt 顺序、tag / nltags 分离、双 LoRA 质量前缀、负向动态组装、workflow args、seed 行为、`submit` 非阻塞和 PowerShell JSON 编码。
+- **硬锚点校验**：角色、作品、画师、服装、道具等 hard anchors 由 `danbooru-tags` 校验，避免模型凭记忆乱写 tag。
+- **执行层纯粹**：`comfyui-manager` 只执行准备好的 workflow 和 args，不写 prompt、不选画师、不决定构图。
+- **按需参考**：失败模式、画师风格研究等内容留在 references，只有遇到对应问题才读取。
 
 ---
 
@@ -38,13 +38,15 @@
 
 ## 架构设计
 
-基于 Perplexity 三层上下文成本模型：
+v2mini 采用三段式链路：
 
-| 层级            | 组件                                 | 角色                              | 加载时机     |
-| --------------- | ------------------------------------ | --------------------------------- | ------------ |
-| **L1 — 索引**   | 各 Skill 的 `description`            | 路由触发（~100 token/Skill）      | 每次会话     |
-| **L2 — 加载**   | `SKILL.md` 主体                      | 领域边界与不可丢规则              | Skill 触发时 |
-| **L3 — 运行时** | `references/` + `scripts/` + `data/` | 详细规则与执行工具                | 按需读取     |
+| 层级 | 组件 | 角色 | 加载时机 |
+| --- | --- | --- | --- |
+| **L1 — 入口** | `comfyui-animatool` | 视觉简报、prompt 组装、冲突检查、args 输出 | Anima 生图触发时 |
+| **L2 — 校验** | `danbooru-tags` | tag 检索、canonical 校验、随机候选池 | 需要 hard anchors 时 |
+| **L3 — 执行** | `comfyui-manager` | validate / submit / run / 排障 / 缓存输出 | args 准备完成后 |
+
+这条链路不做多代理分工，不创建 route contract，不把用户需求拆成过度流程。模型先理解画面，skill 只兜住 Anima 和 ComfyUI 的硬规则。
 
 ---
 
@@ -53,59 +55,41 @@
 ```
 comfyui-good-anima/
 ├── README.md
-├── shared/
-│   ├── conventions.md          # 共享规范：质量前缀、步数、采样器、画布等
-│   └── legacy/gotchas.md       # 旧版陷阱清单，仅维护审查时参考
-├── comfyui-anima-master/
-│   └── SKILL.md                # 统一入口 — 路由 + 不可丢事实
+├── README_EN.md
 ├── comfyui-animatool/
-│   ├── SKILL.md                # Prompt 组装、冲突检查、args 准备
+│   ├── SKILL.md                # Anima 生图唯一入口：视觉简报、tag/nltags 分离、prompt + args
 │   └── references/
-│       ├── prompt-assembly.md  # 标签排序、权重规则、槽位冲突
-│       └── batch-strategy.md   # 多图批量生成策略
-├── anima-composition-director/
-│   ├── SKILL.md                # 构图边界 — 画布/镜头/光影/多人归属
-│   └── references/
-│       ├── intent-expansion-patterns.md # 意图展开：场景容器→物理上下文→叙事锚点
-│       ├── canvas-layout.md    # 画布、相机、灯光、布局
-│       ├── scene-emotion.md    # 多角色、环境、故事、情感
-│       ├── composition-case-studies/  # 构图失败防漂移索引（按症状读取）
-│       │   ├── _index.md               # 失败症状路由，不是构图教材
-│       │   ├── composition-errors.md   # 普通错题集：失败 → 原因 → 修正
-│       │   ├── composition-judgment.md # 生成后自检/修正
-│       │   ├── single-character.md     # 单人尺度/主体比例风险
-│       │   ├── character-interaction.md# 双人/多人归属风险
-│       │   ├── perspective-camera.md   # 特殊镜头失败保护
-│       │   ├── lighting-and-depth.md   # 光源、补光、景深保护
-│       │   ├── environment-storytelling.md # 场景尺度、落地、故事道具收敛
-│       │   ├── dynamic-action.md       # 动作方向、手脚、道具可读性
-│       │   ├── color-mood.md           # 色彩分离与主体可读性
-│       │   ├── form-proportion.md      # 比例、体型差、服装吞结构
-│       │   └── clothing-silhouette-reference.md # 服装轮廓与材质表达
-│       └── adult-runtime/              # 成人/特殊专项索引，只有明确请求才读
-│           └── scene-risk.md           # 成人场景私密/公共边界与风险张力
+│       ├── artist-style-research.md # 只在研究画师风格时读取
+│       └── failure-patterns.md      # 只在出图失败/畸形/归属混乱时读取
+├── danbooru-tags/
+│   ├── SKILL.md                # Danbooru tag 检索与校验
+│   ├── bin/danbooru-tags.exe   # Rust CLI（预编译）
+│   ├── anima-1.0.csv           # Anima 标签主索引
+│   ├── Anima-preview.csv       # 预览版 tag 数据
+│   ├── Anima-preview-alternate.csv
+│   ├── tags_index.json         # JSON 索引
+│   ├── tags_index.sqlite       # SQLite 高速索引
+│   ├── *.py                    # 索引构建脚本
+│   └── rust-cli/               # danbooru-tags Rust 源码
 ├── comfyui-manager/
 │   ├── SKILL.md                # ComfyUI 执行与运维
-│   ├── workspace/              # 工作流 JSON + 执行脚本
+│   ├── workspace/              # workflow JSON + 执行脚本
 │   │   ├── config.json
 │   │   ├── run_workflow_args.js
 │   │   ├── cache_anima_outputs.js
-│   │   └── data/               # 5 个工作流定义 + local/ 导入映射
-│   └── references/
-│       └── operations.md       # 完整 CLI 命令参考与故障排查
-├── danbooru-tags/
-│   ├── SKILL.md                # 标签检索与校验
-│   ├── bin/danbooru-tags.exe   # Rust CLI（预编译）
-│   ├── anima-1.0.csv           # Anima 标签主索引
-│   ├── tags_index.sqlite       # SQLite 高速索引
-│   ├── *.py                    # 索引构建脚本
-│   └── references/
-│       └── query-patterns.md   # 查询策略与批量模式
-└── anima-random-gen/
-    ├── SKILL.md                # 随机语义参数生成
-    ├── random_generator.py     # 随机引擎
-    └── *.py + tag_pools.json   # 辅助脚本与数据
+│   │   └── data/               # 工作流定义 + local/ 导入映射
+├── samples/                    # 示例图
+├── legacy/v1/                  # V1 归档版本，仅历史参考，保留在 git
+├── legacy/V3/                  # V3 本地封存版本，不纳入 git
+└── LICENSE
 ```
+
+### 版本归档规则
+
+- 当前主线只维护 v2mini：`comfyui-animatool`、`danbooru-tags`、`comfyui-manager`。
+- `legacy/v1/` 作为早期硬约束链路归档，可用于对照规则退化，不作为运行入口。
+- `legacy/V3/` 作为本地封存版本保留，不提交到 git，不作为安装路径或技能根目录。
+- 新规则优先进入三大核心 skill；失败排查和画师研究只放入 `comfyui-animatool/references/`。
 
 ---
 
@@ -294,23 +278,26 @@ cd ComfyUI
 pip install comfyui-skill-cli
 ```
 
-```powershell
-$env:DANBOORU_TAGS_DIR = "<你的 danbooru-tags 技能目录绝对路径>"
+### 1b. 设置技能根目录（必需）
+
+`COMFYUI_GOOD_ANIMA_SKILLS_DIR` 必须指向安装后的 skills 根目录，目录下应直接包含：
+
+```text
+comfyui-animatool/
+danbooru-tags/
+comfyui-manager/
 ```
-
-> 💡 **为什么需要？** `anima-random-gen` 和 `comfyui-animatool` 每次调用都会自动搜索 `danbooru-tags.exe`。如果本机保留了 `legacy/v1` 或其他实验副本，自动搜索可能命中旧 CLI。**设置此变量后，代码直接命中当前主线的 `danbooru-tags` 路径，不再递归猜测。**
-
-**永久生效（PowerShell）：**
 
 ```powershell
 [System.Environment]::SetEnvironmentVariable(
-    "DANBOORU_TAGS_DIR",
-    "H:\github\comfyui-good-anima\danbooru-tags",
+    "COMFYUI_GOOD_ANIMA_SKILLS_DIR",
+    "C:\Users\12971\skills",
     "User"
 )
+$env:COMFYUI_GOOD_ANIMA_SKILLS_DIR = "C:\Users\12971\skills"
 ```
 
-将路径替换为你本地 `comfyui-good-anima/danbooru-tags` 目录的绝对路径。
+如果你的 skills 安装在其他位置，把路径替换为自己的 skills 根目录。不要指向 `legacy/v1`、`legacy/V3` 或其他实验副本。
 
 ---
 
@@ -323,30 +310,34 @@ $env:DANBOORU_TAGS_DIR = "<你的 danbooru-tags 技能目录绝对路径>"
 ```powershell
 cd comfyui-good-anima/comfyui-manager/workspace
 comfyui-skill workflow import data/anima-txt2img-aesthetic-lora.json --check-deps --json
+comfyui-skill workflow import data/anima-txt2img-aesthetic-lora-artist-mixer.json --check-deps --json
+comfyui-skill workflow import data/anima-txt2img-base.json --check-deps --json
 ```
 
 ### 4. 执行生图
+
+AI 助手触发 `comfyui-animatool` 后会输出 `workflow_id` 和扁平 args JSON，再交给 `comfyui-manager`：
 
 ```powershell
 cd comfyui-good-anima/comfyui-manager/workspace
 node ./run_workflow_args.js submit local/anima-txt2img-aesthetic-lora ./args_anima.json
 ```
 
-`run_workflow_args.js` 会通过 argv 安全传递 JSON args，避免 PowerShell 内联 `--args` 破坏引号、反斜杠或换行。
+`run_workflow_args.js` 会通过 argv 安全传递 JSON args。省略 seed 时脚本会自动生成随机 seed 并写回 args。
 `submit` 非阻塞返回 `prompt_id`；需要等图或查看结果时再显式查询状态。
 
 ### 5. 开始对话
 
 直接描述你想生成什么：
 
-```
-"生成天使心跳的立华奏"           → master 路由到标准生图链路
-"来个随机"                       → 路由到 anima-random-gen
-"融合 wlop 和 sakimichan 的画风" → 使用 Artist Mixer 工作流
-"出 10 张不同姿势"               → 批量 args + submit
+```text
+"生成天使心跳的立华奏"           → 标准生图链路
+"来个随机画师出图"               → danbooru-tags 随机候选 → animatool 组装
+"融合 wlop 和 sakimichan 的画风" → Artist Mixer workflow
+"出 10 张不同姿势"               → 多 prompt 或 batch_size 变体
 ```
 
-`comfyui-anima-master` 自动识别意图并分发到对应技能；它不把所有规则都塞进入口。
+v2mini 不强迫用户先写完整提示词。用户说想法，AI 形成画面；skill 负责确保 tag、nltags、args 和 workflow 不跑偏。
 
 ---
 
@@ -356,26 +347,31 @@ node ./run_workflow_args.js submit local/anima-txt2img-aesthetic-lora ./args_ani
 用户意图
     │
     ▼
-comfyui-anima-master  ──  意图路由 + 不可丢事实
+comfyui-animatool
     │
-    ├── "随机/抽卡/roll"  ──►  anima-random-gen
-    │                              │
-    │                              ▼
-    │                        随机参数产出 → master 复核
+    ├── 视觉简报
+    │     └── 主体 / 场景容器 / 动作关系 / 镜头 / 画布 / 光影 / nltags
     │
-    ├── "复杂构图/多角色"  ──►  anima-composition-director
-    │                              │
-    │                              ▼
-    │                        构图 JSON → master 组装
+    ├── danbooru-tags
+    │     └── 角色 / 作品 / 画师 / 服装 / 道具 / 姿势 hard anchors 校验
     │
-    └── "标准生图"（默认）──►  prompt 组装与执行链路
-                                   │
-                          ┌────────┼────────┐
-                          ▼        ▼        ▼
-                    danbooru-tags  构图决策  comfyui-
-                     (标签校验)   (可选)    manager
-                                           (执行)
+    ├── prompt 组装
+    │     ├── tag_block：质量、年代、安全、角色、作品、画师、外观、道具
+    │     ├── nltags_block：位置、关系、接触、视线、遮挡、光源、景深
+    │     └── prompt_11 = tag_block + nltags_block
+    │
+    ├── 负向动态组装
+    │     └── 按脸、手、脚、多人、透视、持物、动态动作风险追加
+    │
+    ▼
+comfyui-manager
+    │
+    ├── validate
+    ├── submit
+    └── run / cache（仅用户要求时）
 ```
+
+核心原则：不要把普通创作判断写死；只把会导致 Anima 或 workflow 明确失败的边界写死。
 
 ---
 
@@ -391,14 +387,15 @@ comfyui-anima-master  ──  意图路由 + 不可丢事实
 
 ## 工作流类型
 
-| 类型          | 处理方式           | 说明                                 |
-| ------------- | ------------------ | ------------------------------------ |
-| 文生图        | master 路由        | 标准人物/画师/场景生成               |
-| 文生图 + LoRA | master 路由        | 双美学 LoRA 增强（默认）             |
-| 图生图        | 待独立路由         | 不与默认文生图混用                   |
-| 随机 / 抽卡   | `anima-random-gen` | 随机参数 → master 复核执行           |
-| 批量          | master 路由        | 同 prompt 多变体或不同 prompt 多任务 |
-| 画师融合      | Artist Mixer       | 多画师混合（artist_chain）           |
+| 类型 | 处理方式 | 说明 |
+| --- | --- | --- |
+| 文生图 | `comfyui-animatool` | 默认入口，生成 prompt + args |
+| 文生图 + 双 LoRA | `local/anima-txt2img-aesthetic-lora` | 当前默认工作流 |
+| 裸模型对比 | `local/anima-txt2img-base` | 用于排障或对比测试 |
+| 画师融合 | `local/anima-txt2img-aesthetic-lora-artist-mixer` | 仅用户明确要求融合时使用 |
+| 批量 | 单 prompt 用 `batch_size`，多 prompt 分 job | 不把多个不同主题塞进同一个 prompt |
+| 随机 / 抽卡 | `danbooru-tags --random` | 先抽候选，再由 animatool 组装 |
+| 图生图 | 暂不混入默认链路 | 后续可独立 skill 化 |
 
 ---
 
@@ -429,8 +426,8 @@ python sqlite_index.py
 `danbooru-tags/bin/danbooru-tags.exe` 是本项目的核心标签检索工具，**已预编译为 Windows 可执行文件**，无需安装 Rust 或编译即可使用。
 
 - ✅ **直接使用** — `.exe` 已包含在 `bin/` 目录，clone 后立即可用
-- ✅ **无需安装 Rust** — 除非你想修改源码或编译其他平台版本
-- ❌ **`rust-cli/` 源码** — 本仓库未包含 Rust 源码目录，如需源码请单独联系
+- ✅ **源码已包含** — `danbooru-tags/rust-cli/` 包含 Rust 源码与 `Cargo.toml`
+- ✅ **构建产物不提交** — `rust-cli/target/` 保持忽略，只提交源码、`Cargo.toml` 和 `Cargo.lock`
 
 ---
 

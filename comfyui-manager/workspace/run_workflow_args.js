@@ -1,4 +1,5 @@
 const { execFileSync } = require("child_process");
+const { randomInt } = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const {
@@ -39,8 +40,7 @@ const resolvedArgsFile = path.resolve(workspace, argsFile);
 
 function workflowHistoryDirs(workflowIdValue) {
   const parts = String(workflowIdValue).split(/[\\/]/).filter(Boolean);
-  if (parts.length < 2) return [];
-  const provider = parts[0];
+  const provider = parts.length >= 2 ? parts[0] : "local";
   const workflowName = parts[parts.length - 1];
   return [
     {
@@ -102,6 +102,22 @@ function writeRuntimeHistory(statusPayload, workflowId, argsJson) {
   );
 }
 
+function hasSeed(args) {
+  return Object.prototype.hasOwnProperty.call(args, "seed") && args.seed !== "";
+}
+
+function applyDefaultSeed(args) {
+  if (hasSeed(args)) return args;
+  return {
+    ...args,
+    seed: randomInt(1, 0x100000000),
+  };
+}
+
+function writeEffectiveArgs(filePath, args) {
+  fs.writeFileSync(filePath, JSON.stringify(args, null, 2), "utf8");
+}
+
 function runBySubmitAndPoll() {
   const submitPayload = runComfyuiSkill([
     "submit",
@@ -147,7 +163,9 @@ function runBySubmitAndPoll() {
 
 let argsJson;
 try {
-  argsJson = JSON.stringify(readJsonFile(resolvedArgsFile));
+  const args = applyDefaultSeed(readJsonFile(resolvedArgsFile));
+  writeEffectiveArgs(resolvedArgsFile, args);
+  argsJson = JSON.stringify(args);
 } catch (error) {
   console.error(
     `[run_workflow_args] Failed to read/parse args JSON: ${resolvedArgsFile}`

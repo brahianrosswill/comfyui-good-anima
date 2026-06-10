@@ -13,7 +13,6 @@ build/
 
 # Rust (danbooru-tags source)
 danbooru-tags/rust-cli/target/
-danbooru-tags/rust-cli/Cargo.lock
 
 # Node
 node_modules/
@@ -49,3 +48,6 @@ comfyui-good-anima-new/
 # Agent 会话和技能缓存（不应提交）
 .helloagents/sessions/
 .snow/
+
+# Local archives
+legacy/V3/

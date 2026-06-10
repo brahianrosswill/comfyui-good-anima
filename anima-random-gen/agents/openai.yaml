@@ -1,7 +1,0 @@
-interface:
-  display_name: "anima-random-gen"
-  short_description: "Random Anima image parameter generator"
-  default_prompt: "Use $anima-random-gen to create random Anima image parameters."
-
-policy:
-  allow_implicit_invocation: true

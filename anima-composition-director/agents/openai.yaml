@@ -1,7 +1,0 @@
-interface:
-  display_name: "anima-composition-director"
-  short_description: "Anima composition planner"
-  default_prompt: "Use $anima-composition-director to plan canvas, camera, lighting, and layout."
-
-policy:
-  allow_implicit_invocation: true

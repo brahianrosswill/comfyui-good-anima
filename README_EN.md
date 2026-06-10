@@ -1,6 +1,6 @@
 # ComfyUI Good Anima 🎨
 
-> A collection of AI Agent Skills for ComfyUI + Anima anime-style image generation. The current mainline uses a thin master, intent expansion, and progressive disclosure: vague requests are first turned into clear generation concepts, while routing facts and execution details are loaded on demand.
+> A collection of AI Agent Skills for ComfyUI + Anima anime-style image generation. The active mainline is v2mini: it removes multi-agent-style routing and keeps only the core Anima constraints, Danbooru tag validation, and ComfyUI execution chain, leaving more creative space to the user and the AI model.
 
 ---
 
@@ -12,25 +12,26 @@
 
 ## Mainline Features
 
-- **Thin Master** (`comfyui-anima-master`): A routing and must-keep-facts layer. It preserves the user intent, decides which skill owns the next step, and avoids loading long composition or execution details until needed.
-- **Shared Conventions** (`shared/`): Cross-skill repeated content (quality prefixes, step rules, artist formats, etc.) managed centrally — one change applies globally.
-- **Intent Expansion Layer**: Vague requests are decomposed into subject, scene container, relationship, and style anchors, then enriched with the physical context, action beat, and visible narrative anchor needed for a coherent image. This is a thinking path, not a hard checklist.
-- **Three-Tier Progressive Disclosure**: Master (routing + facts) → Skill (domain boundaries) → Reference (execution facts / failure guardrails), loaded on demand, each tier exposing only essential information.
-- **Failure Guardrails Instead of Art Lessons**: Composition references prevent Anima-specific drift such as black faces under backlight, subject shrinkage, attribute swaps, and workflow misuse; they are not general art textbooks.
-- **Self-Contained Random Generation**: `anima-random-gen` with all rules inlined, zero external references.
-- **Updated Model Info**: Synchronized with official [circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) URLs, LoRA-dependent quality prefixes, and sampler configurations.
+- **Back to basics**: v2mini no longer depends on master / composition-director / random-gen multi-layer routing. Anima generation enters through `comfyui-animatool`.
+- **Creative space stays with the user and model**: Skills do not replace taste, composition sense, or character understanding. They only guard the hard boundaries that often fail in Anima workflows.
+- **Must-keep facts**: Anima prompt order, tag/nltags separation, dual-LoRA quality prefix, dynamic negative prompts, workflow args, seed behavior, non-blocking `submit`, and PowerShell JSON encoding.
+- **Hard-anchor validation**: Characters, series, artists, outfits, props, and other anchors are validated with `danbooru-tags` instead of guessed from memory.
+- **Pure execution layer**: `comfyui-manager` only executes prepared workflows and args. It never writes prompts, chooses artists, or decides composition.
+- **On-demand references**: Failure patterns and artist-style research stay in references and are loaded only when needed.
 
 ---
 
 ## Architecture
 
-Based on the Perplexity three-tier context cost model:
+v2mini uses a three-part chain:
 
-| Tier             | Component                            | Role                                                 | Load Timing      |
-| ---------------- | ------------------------------------ | ---------------------------------------------------- | ---------------- |
-| **L1 — Index**   | Each Skill's `description`           | Routing trigger (~100 token/Skill)                   | Every session    |
-| **L2 — Load**    | `SKILL.md` body                      | Core decisions & built-in capabilities (~2500 token) | On Skill trigger |
-| **L3 — Runtime** | `references/` + `scripts/` + `data/` | Detailed rules & execution tools                     | On-demand        |
+| Tier | Component | Role | Load Timing |
+| --- | --- | --- | --- |
+| **L1 — Entry** | `comfyui-animatool` | Visual brief, prompt assembly, conflict checks, args output | On Anima generation |
+| **L2 — Validation** | `danbooru-tags` | Tag lookup, canonical validation, random candidates | When hard anchors are needed |
+| **L3 — Execution** | `comfyui-manager` | validate / submit / run / troubleshooting / output caching | After args are ready |
+
+The chain does not create route contracts or split user intent into excessive workflow layers. The model understands the image first; skills keep Anima and ComfyUI rules stable.
 
 ---
 
@@ -39,54 +40,41 @@ Based on the Perplexity three-tier context cost model:
 ```
 comfyui-good-anima/
 ├── README.md
-├── shared/
-│   ├── conventions.md          # Shared facts: quality prefixes, samplers, canvas, nodes
-│   └── legacy/gotchas.md       # Legacy pitfalls, maintenance review only
-├── comfyui-anima-master/
-│   └── SKILL.md                # Unified entry — routing + must-keep facts
+├── README_EN.md
 ├── comfyui-animatool/
-│   ├── SKILL.md                # Prompt assembly, conflict checks, args preparation
+│   ├── SKILL.md                # Single Anima entry: visual brief, tag/nltags split, prompt + args
 │   └── references/
-│       ├── prompt-assembly.md  # Tag ordering, weight rules, slot conflicts
-│       ├── chinese-visual-brief.md # Limited Chinese intent expansion
-│       └── batch-strategy.md   # Multi-image batch generation strategies
-├── anima-composition-director/
-│   ├── SKILL.md                # Composition boundaries — canvas/camera/light/readability
-│   └── references/
-│       ├── intent-expansion-patterns.md # Intent expansion: scene container → physical context → story anchor
-│       ├── canvas-layout.md    # Canvas, camera, layout, light guardrails
-│       ├── scene-emotion.md    # Multi-character, environment, story controls
-│       ├── composition-case-studies/  # Failure guardrails by symptom
-│       │   ├── _index.md               # Failure routing, not an art textbook
-│       │   ├── composition-errors.md   # Common failure → cause → fix
-│       │   ├── composition-judgment.md # Post-generation self-check
-│       │   ├── single-character.md     # Subject scale and background risk
-│       │   ├── character-interaction.md# Multi-character attribution risk
-│       │   ├── perspective-camera.md   # Special camera failure protection
-│       │   ├── lighting-and-depth.md   # Fill light, bokeh, value separation
-│       │   ├── environment-storytelling.md # Scale, grounding, story-prop restraint
-│       │   ├── dynamic-action.md       # Action direction, hands, props readability
-│       │   ├── color-mood.md           # Color separation and subject readability
-│       │   ├── form-proportion.md      # Proportion, body-size contrast, clothing swallowing structure
-│       │   └── clothing-silhouette-reference.md # Clothing silhouette and material expression
-│       └── adult-runtime/              # Adult/special-topic index; explicit requests only
-│           └── scene-risk.md           # Adult scene privacy/public-risk reference
+│       ├── artist-style-research.md # Loaded only for artist style research
+│       └── failure-patterns.md      # Loaded only for failed outputs / anatomy / attribution issues
+├── danbooru-tags/
+│   ├── SKILL.md                # Danbooru tag lookup and validation
+│   ├── bin/danbooru-tags.exe   # Prebuilt Rust CLI
+│   ├── anima-1.0.csv           # Main Anima tag index
+│   ├── Anima-preview.csv
+│   ├── Anima-preview-alternate.csv
+│   ├── tags_index.json
+│   ├── tags_index.sqlite
+│   ├── *.py                    # Index build scripts
+│   └── rust-cli/               # danbooru-tags Rust source
 ├── comfyui-manager/
 │   ├── SKILL.md                # ComfyUI execution and operations
-│   ├── workspace/              # Workflow JSON + execution scripts
-│   └── references/
-│       └── operations.md       # Full CLI command reference & troubleshooting
-├── danbooru-tags/
-│   ├── SKILL.md                # Tag retrieval & validation
-│   ├── bin/danbooru-tags.exe   # Rust CLI
-│   ├── anima-1.0.csv           # Anima tag index
-│   ├── tags_index.sqlite       # SQLite index
-│   └── references/
-│       └── query-patterns.md   # Query strategies & batch patterns
-└── anima-random-gen/
-    ├── SKILL.md                # Random semantic generation
-    └── random_generator.py     # Random engine
+│   ├── workspace/              # workflow JSON + execution scripts
+│   │   ├── config.json
+│   │   ├── run_workflow_args.js
+│   │   ├── cache_anima_outputs.js
+│   │   └── data/
+├── samples/
+├── legacy/v1/                  # V1 archive, tracked for historical reference
+├── legacy/V3/                  # V3 local sealed archive, not committed
+└── LICENSE
 ```
+
+### Version Archive Rules
+
+- The active mainline is v2mini only: `comfyui-animatool`, `danbooru-tags`, and `comfyui-manager`.
+- `legacy/v1/` is an early hard-constraint chain archive, kept for regression comparison, not used as the runtime entry.
+- `legacy/V3/` is a local sealed archive. Do not commit it and do not use it as the skills root.
+- New core rules go into the three main skills first; failure handling and artist research stay in `comfyui-animatool/references/`.
 
 ---
 
@@ -296,44 +284,54 @@ Download model files according to the tables above and place them in the correct
 
 ### 2. Install custom nodes
 
-Via ComfyUI Manager or manual clone as shown above.
+Install the custom nodes listed above through ComfyUI Manager or manual clone.
 
 ### 3. Load the skill pack
 
-Place the entire `comfyui-good-anima/` directory into your AI assistant's Skills directory.
+Place this repository in your AI assistant skills directory, or make sure the skills root directly contains:
 
-### 3b. Set environment variable (recommended)
-
-```powershell
-$env:DANBOORU_TAGS_DIR = "<your danbooru-tags skill directory absolute path>"
+```text
+comfyui-animatool/
+danbooru-tags/
+comfyui-manager/
 ```
 
-> 💡 **Why?** `anima-random-gen` and `comfyui-animatool` auto-search for `danbooru-tags.exe` on every call. If your machine still keeps `legacy/v1` or experimental copies, the search may hit an old CLI. Setting this variable pins the current mainline `danbooru-tags` path — no more recursive guessing.
+### 3b. Set the skills root (required)
 
-**Permanent (PowerShell):**
+`COMFYUI_GOOD_ANIMA_SKILLS_DIR` must point to the installed skills root.
 
 ```powershell
 [System.Environment]::SetEnvironmentVariable(
-    "DANBOORU_TAGS_DIR",
-    "H:\github\comfyui-good-anima\danbooru-tags",
+    "COMFYUI_GOOD_ANIMA_SKILLS_DIR",
+    "C:\Users\12971\skills",
     "User"
 )
+$env:COMFYUI_GOOD_ANIMA_SKILLS_DIR = "C:\Users\12971\skills"
 ```
 
-Replace the path with your local `comfyui-good-anima/danbooru-tags` absolute path.
+Do not point it to `legacy/v1`, `legacy/V3`, or experimental copies.
 
-### 4. Start a conversation
+### 4. Import workflows
+
+```powershell
+cd comfyui-good-anima/comfyui-manager/workspace
+comfyui-skill workflow import data/anima-txt2img-aesthetic-lora.json --check-deps --json
+comfyui-skill workflow import data/anima-txt2img-aesthetic-lora-artist-mixer.json --check-deps --json
+comfyui-skill workflow import data/anima-txt2img-base.json --check-deps --json
+```
+
+### 5. Start a conversation
 
 Simply describe what you want to generate:
 
-```
-"Generate Kanade Tachibana from Angel Beats!"   → master built-in standard generation
-"Give me something random"                       → routed to anima-random-gen
-"Fuse wlop and sakimichan art styles"            → master built-in artist fusion
-"Generate 10 different poses"                     → master built-in batch generation
+```text
+"Generate Kanade Tachibana from Angel Beats!"   → standard generation
+"Give me a random artist image"                 → danbooru-tags random candidates → animatool assembly
+"Fuse wlop and sakimichan art styles"           → Artist Mixer workflow
+"Generate 10 different poses"                   → multiple prompts or batch_size variants
 ```
 
-`comfyui-anima-master` detects intent and dispatches to the appropriate skill. Clear requests stay lightweight; vague or composition-heavy requests load the intent/composition layer before prompt assembly.
+v2mini does not force the user to pre-write a complete prompt. The user gives the idea, the AI forms the image, and the skills keep tags, nltags, args, and workflows stable.
 
 ---
 
@@ -343,26 +341,31 @@ Simply describe what you want to generate:
 User Intent
     │
     ▼
-comfyui-anima-master  ──  Intent routing (built-in standard/batch/fusion)
+comfyui-animatool
     │
-    ├── "random/roll"  ──►  anima-random-gen
-    │                              │
-    │                              ▼
-    │                        Random params output → master review
+    ├── Visual brief
+    │     └── subject / scene container / relation / camera / canvas / light / nltags
     │
-    ├── "complex composition/multi-character"  ──►  anima-composition-director
-    │                              │
-    │                              ▼
-    │                        Composition JSON → master assembly
+    ├── danbooru-tags
+    │     └── character / series / artist / outfit / prop / pose hard-anchor validation
     │
-    └── "standard generation" (default) ──►  master built-in flow
-                                   │
-                          ┌────────┼────────┐
-                          ▼        ▼        ▼
-                    danbooru-tags  composition  comfyui-
-                     (tag validation)  (optional)   manager
-                                           (execution)
+    ├── Prompt assembly
+    │     ├── tag_block: quality, year, safety, character, series, artist, appearance, props
+    │     ├── nltags_block: position, relation, contact, gaze, occlusion, light, depth
+    │     └── prompt_11 = tag_block + nltags_block
+    │
+    ├── Dynamic negative prompt
+    │     └── face, hands, feet, multi-character, perspective, held props, action risks
+    │
+    ▼
+comfyui-manager
+    │
+    ├── validate
+    ├── submit
+    └── run / cache only when requested
 ```
+
+Core principle: do not hard-code ordinary creative judgment; hard-code only boundaries that clearly break Anima or the workflow.
 
 ---
 
@@ -405,8 +408,8 @@ python sqlite_index.py
 The `danbooru-tags/bin/danbooru-tags.exe` is the core tag retrieval tool, **pre-compiled for Windows** — no Rust installation or compilation needed.
 
 - ✅ **Ready to use** — `.exe` included in `bin/`, works immediately after clone
-- ✅ **No Rust needed** — unless you want to modify the source or compile for other platforms
-- ❌ **`rust-cli/` source** — not included in this repo; contact us separately if needed
+- ✅ **Source included** — `danbooru-tags/rust-cli/` contains the Rust source and `Cargo.toml`
+- ✅ **Build outputs excluded** — `rust-cli/target/` stays ignored; commit source, `Cargo.toml`, and `Cargo.lock`
 
 ---
 
