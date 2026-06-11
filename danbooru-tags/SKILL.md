@@ -125,6 +125,63 @@ $file = Join-Path $env:TEMP "danbooru_batch.json"
 - `missing` — 写 nltags。
 - 不向用户复述完整搜索过程。
 
+## JSON 输出 schema
+
+### 单查 `--for-prompt --json --compact`
+
+```json
+{
+  "found": true,
+  "confirmed_tags": {
+    "characters": [
+      {
+        "tag": "hakurei_reimu",
+        "prompt_tag": "hakurei reimu",
+        "category": "characters",
+        "source_category": "characters",
+        "count": 65105,
+        "match_score": 1000,
+        "match_layer": "exact_tag"
+      }
+    ]
+  },
+  "candidate_tags": {}
+}
+```
+
+### 批量 `--batch-file ... --for-prompt --json --compact`
+
+```json
+{
+  "found": true,
+  "results": {
+    "character": {
+      "found": true,
+      "confirmed_tags": {},
+      "candidate_tags": {}
+    }
+  },
+  "missing": [],
+  "usage": {
+    "confirmed_tags": "...",
+    "candidate_tags": "...",
+    "nltags_hint": "...",
+    "empty_result": "..."
+  }
+}
+```
+
+字段规则：
+
+- `found=false` → 不回填 tag。
+- `confirmed_tags.<category>[]` → 可作为 hard tag 候选，仍按用户意图筛选。
+- `candidate_tags.<category>[]` → 只用于人工/模型筛选，不直接写入 `hard_tags`。
+- `missing[]` → 对应 query 没有可确认 tag；停止补查或改写为 nltags。
+- `match_layer=exact_tag` → tag 直接命中。
+- `match_layer=exact_alias` → alias 精确命中。
+- `match_layer=prefix` → artist prefix 命中。
+- `match_layer=fuzzy` / `group_general_fallback` → 候选，不是 confirmed。
+
 ## 硬性规则
 
 - Artist tag 必须来自 artist category，保留 `@`。

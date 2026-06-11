@@ -435,6 +435,37 @@ python sqlite_index.py
 
 ---
 
+## ✅ 验证方式
+
+提交前建议执行以下检查：
+
+```powershell
+# Rust CLI
+Push-Location ".\danbooru-tags\rust-cli"
+cargo test
+Pop-Location
+
+# Skill 元数据
+$env:PYTHONUTF8="1"
+python "C:\Users\12971\skills\.system\skill-creator\scripts\quick_validate.py" ".\comfyui-animatool"
+python "C:\Users\12971\skills\.system\skill-creator\scripts\quick_validate.py" ".\danbooru-tags"
+python "C:\Users\12971\skills\.system\skill-creator\scripts\quick_validate.py" ".\comfyui-manager"
+
+# 工作流执行脚本语法
+node --check ".\comfyui-manager\workspace\run_workflow_args.js"
+```
+
+`comfyui-skill-cli` 升级后，先执行：
+
+```powershell
+comfyui-skill deps check local/anima-txt2img-aesthetic-lora
+node ".\comfyui-manager\workspace\run_workflow_args.js" validate local/anima-txt2img-aesthetic-lora ".\comfyui-manager\workspace\args_sample.json"
+```
+
+将 `args_sample.json` 替换为实际准备好的 args 文件。确认 validate / submit 行为正常后再进入正式生图。
+
+---
+
 ## 参考链接
 
 - **模型**：[circlestone-labs/Anima](https://huggingface.co/circlestone-labs/Anima) — 官方模型页
